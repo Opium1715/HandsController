@@ -12,8 +12,8 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 72)
 
 # 设置线程睡眠时间
 pyautogui.PAUSE = 0.01
@@ -21,12 +21,14 @@ pyautogui.PAUSE = 0.01
 PostureList = [False]
 MOUSE_MODE = False
 CONTROL_WINDOW_MODE = False
+CLICK_READY_MODE=False
+CLICK_MODE = False
 
 Last_Frame_Point = [Point(320, 240)]
 
 # 平滑处理
 beginX, beginY = 0, 0
-smooth_ratio = 15
+smooth_ratio = 24
 # 分辨率适配
 ScreenX, ScreenY = pyautogui.size()
 
@@ -35,6 +37,8 @@ ScreenX, ScreenY = pyautogui.size()
 def posture_predict(hand_landmark, shape):
     global MOUSE_MODE
     global CONTROL_WINDOW_MODE
+    global CLICK_MODE
+    global CLICK_READY_MODE
     # 3->4
     # p3_4 = Point((hand_landmark[4][1] - hand_landmark[3][1]) * shape[1],
     #              (hand_landmark[4][2] - hand_landmark[3][2]) * shape[0])
@@ -62,6 +66,7 @@ def posture_predict(hand_landmark, shape):
     if angle0_5_6 >= 140 and angle2_3_4 >= 165 and angle0_17_18 >= 140:
         CONTROL_WINDOW_MODE = False
         MOUSE_MODE = False
+        CLICK_MODE = False
         print("手掌张开\n")
         pyautogui.keyUp('alt')
 
@@ -84,13 +89,16 @@ def posture_predict(hand_landmark, shape):
         print("____________鼠标模式______________")
         MOUSE_MODE = True
 
-    p4 = Point(hand_landmark[4][1] * shape[1], hand_landmark[4][2] * shape[0])
-    p8 = Point(hand_landmark[8][1] * shape[1], hand_landmark[8][2] * shape[0])
-    length = vector.overlay(p4, p8)
-    print("拇指关节角度=" + str(angle2_3_4) + "  食指关节点角度=" + str(angle6_7_8) + "  小拇指关节点角度=" + str(
-        angle0_17_18) + "\n")
+    elif CLICK_READY_MODE:
+        pass
+
+    # p4 = Point(hand_landmark[4][1] * shape[1], hand_landmark[4][2] * shape[0])
+    # p8 = Point(hand_landmark[8][1] * shape[1], hand_landmark[8][2] * shape[0])
+    # length = vector.overlay(p4, p8)
+    # print("拇指关节角度=" + str(angle2_3_4) + "  食指关节点角度=" + str(angle6_7_8) + "  小拇指关节点角度=" + str(
+    #     angle0_17_18) + "\n")
     # print("距离值=" + str(length))
-    print("\n")
+    print("拇指关节角度=" + str(angle2_3_4))
 
 
 def move_direction(last_frame, current_frame):
@@ -122,18 +130,22 @@ def smooth_process(key_controller, shape):
     global beginY
     global beginX
     # 线性插值
-    interp_X = np.interp(key_controller.x * 1280, (100, 1180), (0, ScreenX-1))
-    interp_Y = np.interp(key_controller.y * 720, (100, 620), (0, ScreenY-1))
-    print(interp_X, interp_Y)
+    interp_X = np.interp(key_controller.x * shape[1], (100, shape[1] - 100), (0, ScreenX - 1))
+    interp_Y = np.interp(key_controller.y * shape[0], (100, shape[0] - 100), (0, ScreenY - 1))
+    # print(interp_X, interp_Y)
     # 平滑
     end_X = beginX + (interp_X - beginX) / smooth_ratio
     end_Y = beginY + (interp_Y - beginY) / smooth_ratio
-
+    # 限制鼠标移动范围
+    end_X = end_X if end_X <= 2040 else 2039
+    end_X = end_X if end_X >= 1 else 1
+    end_Y = end_Y if end_Y <= 1140 else 1140
+    end_Y = end_Y if end_Y >= 1 else 1
     beginY = end_Y
     # holy shit beginX = begin_X
     beginX = end_X
-    print(end_X, end_Y)
-    print('\n')
+    # print(end_X, end_Y)
+    # print('\n')
     return end_X, end_Y
 
 
@@ -141,8 +153,8 @@ def handDetect():
     with mp_hands.Hands(
             model_complexity=1,
             max_num_hands=1,
-            min_detection_confidence=0.65,
-            min_tracking_confidence=0.75) as hands:
+            min_detection_confidence=0.75,
+            min_tracking_confidence=0.7) as hands:
         while cap.isOpened():
             last_Point = Point(320, 240)
             time_start = time.perf_counter()
