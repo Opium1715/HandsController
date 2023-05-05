@@ -1,12 +1,13 @@
-import math
+import time
+
+import autopy
 import cv2
 import mediapipe as mp
-import time
+import numpy as np
 import pyautogui
+
 import utils.vector as vector
 from utils.point import Point
-import numpy as np
-import autopy
 
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -20,8 +21,8 @@ pyautogui.PAUSE = 0.01
 
 PostureList = [False]
 MOUSE_MODE = False
-CONTROL_WINDOW_MODE = False
-CLICK_READY_MODE=False
+CONTROL_PANEL_MODE = False
+CLICK_READY_MODE = False
 CLICK_MODE = False
 
 Last_Frame_Point = [Point(320, 240)]
@@ -36,7 +37,7 @@ ScreenX, ScreenY = pyautogui.size()
 # shape 帧的高度宽度
 def posture_predict(hand_landmark, shape):
     global MOUSE_MODE
-    global CONTROL_WINDOW_MODE
+    global CONTROL_PANEL_MODE
     global CLICK_MODE
     global CLICK_READY_MODE
     # 3->4
@@ -58,19 +59,30 @@ def posture_predict(hand_landmark, shape):
     # 7->6
     p7_6 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 7, 6)
 
+    # 计算角度
     angle2_3_4 = vector.angle_calculate(p3_4, p3_2)
     angle0_5_6 = vector.angle_calculate(p5_0, p5_6)
     angle0_17_18 = vector.angle_calculate(p17_18, p17_0)
     angle6_7_8 = vector.angle_calculate(p7_8, p7_6)
 
-    if angle0_5_6 >= 140 and angle2_3_4 >= 165 and angle0_17_18 >= 140:
-        CONTROL_WINDOW_MODE = False
+    # 方位判断
+    direction4_2 = hand_landmark[4][1] < hand_landmark[2][1]  # 4在2左方
+    direction8_7 = hand_landmark[8][2] < hand_landmark[7][2]  # 8在7上方
+    direction18_17 = hand_landmark[18][2] > hand_landmark[17][2]  # 18在17上方
+
+    # 距离计算
+    length4_8 = vector.overlay(Point(x=hand_landmark[4][1] * shape[1], y=hand_landmark[4][2] * shape[0]),
+                               Point(x=hand_landmark[8][1] * shape[1], y=hand_landmark[8][2] * shape[0]))
+    print("4-8距离{}".format(length4_8))
+
+    if angle0_5_6 >= 140 and angle2_3_4 >= 165 and angle0_17_18 >= 160 and direction18_17:
+        CONTROL_PANEL_MODE = False
         MOUSE_MODE = False
         CLICK_MODE = False
         print("手掌张开\n")
         pyautogui.keyUp('alt')
 
-    elif CONTROL_WINDOW_MODE:
+    elif CONTROL_PANEL_MODE:
         print("握拳移动\n")
         Last_Frame_Point[0] = move_direction(Last_Frame_Point[0],
                                              Point(hand_landmark[0][1] * shape[1], hand_landmark[0][2] * shape[0]))
@@ -79,7 +91,26 @@ def posture_predict(hand_landmark, shape):
         print("握拳\n")
         pyautogui.keyDown('alt')
         pyautogui.press('tab')
-        CONTROL_WINDOW_MODE = True
+        CONTROL_PANEL_MODE = True
+
+    elif CLICK_MODE:
+        print("点击{}".format(beginX, beginY))
+        pyautogui.click()
+        CLICK_MODE = False
+        CLICK_READY_MODE = False
+
+    elif direction4_2 and direction8_7:
+        print("左击准备")
+        CLICK_READY_MODE = True
+
+    elif CLICK_READY_MODE:
+        CONTROL_PANEL_MODE = False
+        MOUSE_MODE = False
+        if length4_8 < 50:
+            CLICK_MODE = True
+            CLICK_READY_MODE = False
+        else:
+            CLICK_READY_MODE = False
 
     elif MOUSE_MODE:
         targetX, targetY = smooth_process(Point(hand_landmark[8][1], hand_landmark[8][2]), shape)
@@ -89,16 +120,87 @@ def posture_predict(hand_landmark, shape):
         print("____________鼠标模式______________")
         MOUSE_MODE = True
 
-    elif CLICK_READY_MODE:
-        pass
-
     # p4 = Point(hand_landmark[4][1] * shape[1], hand_landmark[4][2] * shape[0])
     # p8 = Point(hand_landmark[8][1] * shape[1], hand_landmark[8][2] * shape[0])
     # length = vector.overlay(p4, p8)
     # print("拇指关节角度=" + str(angle2_3_4) + "  食指关节点角度=" + str(angle6_7_8) + "  小拇指关节点角度=" + str(
     #     angle0_17_18) + "\n")
     # print("距离值=" + str(length))
-    print("拇指关节角度=" + str(angle2_3_4))
+    # print("拇指关节角度=" + str(angle2_3_4))
+
+
+# def getHandAction(hand_landmark, shape):
+#     global MOUSE_MODE
+#     global CONTROL_PANEL_MODE
+#     global CLICK_MODE
+#     global CLICK_READY_MODE
+#
+#     # 3->4
+#     # p3_4 = Point((hand_landmark[4][1] - hand_landmark[3][1]) * shape[1],
+#     #              (hand_landmark[4][2] - hand_landmark[3][2]) * shape[0])
+#     p3_4 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 3, 4)
+#     # 3->2
+#     p3_2 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 3, 2)
+#     # 17->0
+#     p17_0 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 17, 0)
+#     # 17->18
+#     p17_18 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 17, 18)
+#     # 5->6
+#     p5_6 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 5, 6)
+#     # 5->0
+#     p5_0 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 5, 0)
+#     # 7->8
+#     p7_8 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 7, 8)
+#     # 7->6
+#     p7_6 = vector.Vector_calculator(hand_landmark, shape[1], shape[0], 7, 6)
+#
+#     # 计算角度
+#     angle2_3_4 = vector.angle_calculate(p3_4, p3_2)
+#     angle0_5_6 = vector.angle_calculate(p5_0, p5_6)
+#     angle0_17_18 = vector.angle_calculate(p17_18, p17_0)
+#     angle6_7_8 = vector.angle_calculate(p7_8, p7_6)
+#
+#     # 方位判断
+#     direction4_2 = hand_landmark[4][0] < hand_landmark[2][0]  # 4在2左方
+#     direction8_7 = hand_landmark[8][0] > hand_landmark[7][0]  # 8在7上方
+#
+#     if angle0_5_6 >= 140 and angle2_3_4 >= 165 and angle0_17_18 >= 140:
+#         CONTROL_PANEL_MODE = False
+#         MOUSE_MODE = False
+#         CLICK_MODE = False
+#         print("手掌张开\n")
+#         pyautogui.keyUp('alt')
+#
+#     elif CONTROL_PANEL_MODE:
+#         print("握拳移动\n")
+#         Last_Frame_Point[0] = move_direction(Last_Frame_Point[0],
+#                                              Point(hand_landmark[0][1] * shape[1], hand_landmark[0][2] * shape[0]))
+#
+#     elif angle0_5_6 <= 80 and angle0_17_18 <= 90 and angle2_3_4 <= 165 and angle6_7_8 < 60:
+#         print("握拳\n")
+#         pyautogui.keyDown('alt')
+#         pyautogui.press('tab')
+#         CONTROL_PANEL_MODE = True
+#
+#     elif MOUSE_MODE:
+#         targetX, targetY = smooth_process(Point(hand_landmark[8][1], hand_landmark[8][2]), shape)
+#         autopy.mouse.move(targetX, targetY)
+#
+#     elif angle0_17_18 <= 90 and angle2_3_4 <= 165:
+#         print("____________鼠标模式______________")
+#         MOUSE_MODE = True
+#
+#     elif direction4_2 and direction8_7:
+#         CLICK_READY_MODE = True
+#
+#     elif CLICK_READY_MODE:
+#         CONTROL_PANEL_MODE = False
+#         MOUSE_MODE = False
+#         pass
+#
+#     elif CLICK_MODE:
+#         pyautogui.click()
+#
 
 
 def move_direction(last_frame, current_frame):
