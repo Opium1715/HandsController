@@ -1,6 +1,15 @@
 import math
+import handDetection
+from utils.point import Point
 
-from handtest import Point
+
+# def overlay(p1, p2):
+#     length = math.hypot((p1.x - p2.x), (p1.y - p2.y))
+#     return length
+
+def overlay(vector):
+    length = math.hypot(vector.x, vector.y)
+    return length
 
 
 def angle_calculate(p1, p2):
@@ -8,16 +17,11 @@ def angle_calculate(p1, p2):
     return angle
 
 
-def overlay(p1, p2):
-    length = math.hypot((p1.x - p2.x), (p1.y - p2.y))
-    return length
+# def Vector_calculator(hand_landmark, start, end):
+#     return Point((hand_landmark[end][1] - hand_landmark[start][1]),
+#                  (hand_landmark[end][2] - hand_landmark[start][2]))
 
-
-def Vector_calculator(hand_landmark, width, height, start, end):
-    return Point((hand_landmark[end][1] - hand_landmark[start][1]) * width,
-                 (hand_landmark[end][2] - hand_landmark[start][2]) * height)
-
-
-class Vector:
-    def __init__(self):
-        pass
+def Vector_calculator(handDetector, start, end):
+    start_X, start_Y = handDetector.getSpecificXY(start)
+    end_X, end_Y = handDetector.getSpecificXY(end)
+    return Point((end_X-start_X), (end_Y - start_Y))
